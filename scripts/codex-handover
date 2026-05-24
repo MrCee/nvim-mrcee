@@ -1,0 +1,129 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# codex-handover
+#
+# Writes a repo-safe handover file into a local codex-sync checkout.
+# It avoids storing private account details by default and redacts common local paths/emails.
+#
+# Expected optional environment variables:
+#   CODEX_SYNC_REPO="$HOME/repos/codex-sync"
+#   CODEX_SYNC_BRANCH="main"
+
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+
+CODEX_SYNC_REPO="${CODEX_SYNC_REPO:-$HOME/repos/codex-sync}"
+CODEX_SYNC_BRANCH="${CODEX_SYNC_BRANCH:-main}"
+
+STAMP="$(date '+%Y-%m-%d-%H%M')"
+RUN_DIR="$CODEX_SYNC_REPO/codex-runs"
+RUN_FILE="$RUN_DIR/${STAMP}-${PROJECT_NAME}.md"
+LAST_FILE="$RUN_DIR/LAST-CODEX-RUN.md"
+
+redact_stream() {
+  sed -E \
+    -e "s#${HOME}#~#g" \
+    -e 's#/Users/[A-Za-z0-9._-]+#~#g' \
+    -e 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email-redacted>#g' \
+    -e 's#(gho_|ghp_|github_pat_)[A-Za-z0-9_]+#<github-token-redacted>#g' \
+    -e 's#(sk-[A-Za-z0-9_-]{20,})#<api-key-redacted>#g'
+}
+
+safe_git_status() {
+  git -C "$PROJECT_ROOT" status --short 2>/dev/null | redact_stream || true
+}
+
+safe_git_diff_stat() {
+  git -C "$PROJECT_ROOT" diff --stat 2>/dev/null | redact_stream || true
+}
+
+safe_git_log() {
+  git -C "$PROJECT_ROOT" log --oneline -5 2>/dev/null | redact_stream || true
+}
+
+safe_remotes() {
+  git -C "$PROJECT_ROOT" remote -v 2>/dev/null \
+    | sed -E 's#(https://)[^/@]+@#\1#g' \
+    | redact_stream || true
+}
+
+if [[ ! -d "$CODEX_SYNC_REPO/.git" ]]; then
+  echo "ERROR: codex-sync repo not found at:"
+  echo "  $CODEX_SYNC_REPO"
+  echo
+  echo "Create or clone it first, or set CODEX_SYNC_REPO to the right path."
+  exit 1
+fi
+
+mkdir -p "$RUN_DIR"
+
+cat > "$RUN_FILE" <<EOF2
+# Codex Run Handover
+
+Generated: $(date '+%Y-%m-%d %H:%M:%S %z')
+
+## Source project
+
+- Project: \`${PROJECT_NAME}\`
+- Local path: \`~/${PROJECT_ROOT#$HOME/}\`
+
+## Last Codex task
+
+Describe the task here before pushing if needed.
+
+## Files changed
+
+\`\`\`text
+$(safe_git_status)
+\`\`\`
+
+## Diff stat
+
+\`\`\`text
+$(safe_git_diff_stat)
+\`\`\`
+
+## Recent commits
+
+\`\`\`text
+$(safe_git_log)
+\`\`\`
+
+## Remotes
+
+\`\`\`text
+$(safe_remotes)
+\`\`\`
+
+## Validation
+
+Add validation notes here.
+
+## Risks
+
+Add known risks here.
+
+## Next safest action
+
+Add the next action here.
+
+EOF2
+
+cp "$RUN_FILE" "$LAST_FILE"
+
+cd "$CODEX_SYNC_REPO"
+
+git checkout "$CODEX_SYNC_BRANCH" >/dev/null 2>&1 || true
+git add "$RUN_FILE" "$LAST_FILE"
+
+if git diff --cached --quiet; then
+  echo "No codex-sync handover changes to commit."
+else
+  git commit -m "docs(codex): update latest handover for ${PROJECT_NAME}"
+  git push
+fi
+
+echo "Wrote:"
+echo "  $RUN_FILE"
+echo "  $LAST_FILE"
