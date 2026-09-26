@@ -2,13 +2,12 @@ return {
   {
     "akinsho/toggleterm.nvim",
     version = "*",
-    cmd = { "Codex", "CodexYolo", "CodexHandover", "LazyGit" },
+    cmd = { "Codex", "CodexYolo", "LazyGit" },
     keys = {
       { "<leader>tt", desc = "Terminal: floating shell" },
       { "<leader>tg", desc = "Terminal: lazygit" },
       { "<leader>tc", desc = "Terminal: codex" },
       { "<leader>ty", desc = "Terminal: codex yolo" },
-      { "<leader>th", desc = "Terminal: codex handover" },
     },
     opts = {
       size = 18,
@@ -98,18 +97,6 @@ return {
         open_terminal(cmd, "codex")
       end
 
-      local function run_handover()
-        local root = project_root()
-        local script = root .. "/scripts/codex-handover"
-
-        if vim.fn.filereadable(script) ~= 1 then
-          notify_missing("scripts/codex-handover", "This repo does not contain scripts/codex-handover.")
-          return
-        end
-
-        open_terminal("zsh " .. vim.fn.shellescape(script), "codex-handover")
-      end
-
       vim.keymap.set("n", "<leader>tt", open_shell, { desc = "Terminal: floating shell" })
       vim.keymap.set("n", "<leader>tg", open_lazygit, { desc = "Terminal: lazygit" })
       vim.keymap.set("n", "<leader>tc", function()
@@ -118,7 +105,6 @@ return {
       vim.keymap.set("n", "<leader>ty", function()
         open_codex("--yolo")
       end, { desc = "Terminal: codex yolo" })
-      vim.keymap.set("n", "<leader>th", run_handover, { desc = "Terminal: codex handover" })
 
       vim.api.nvim_create_user_command("Codex", function()
         open_codex("")
@@ -127,10 +113,6 @@ return {
       vim.api.nvim_create_user_command("CodexYolo", function()
         open_codex("--yolo")
       end, { desc = "Open Codex CLI in yolo mode in the current project" })
-
-      vim.api.nvim_create_user_command("CodexHandover", function()
-        run_handover()
-      end, { desc = "Create a Codex handover for this project" })
 
       vim.api.nvim_create_user_command("LazyGit", function()
         open_lazygit()

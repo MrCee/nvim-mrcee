@@ -26,12 +26,11 @@ It is maintained here as an independent configuration.
 
 ## Codex workflow
 
-This config includes a Codex terminal workflow and handover helper.
+This config includes a Codex terminal workflow.
 
 See:
 
 - `docs/CODEX-WORKFLOW.md`
-- `scripts/codex-handover`
 
 ## Attribution
 
